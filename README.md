@@ -1,10 +1,16 @@
 # dictcc-cli
 Quickly look up translations without relying on the browser. This script is 
-mostly just a fancy table formatter which gets it's data for formatting from
-dict.cc.
+mostly just a fancy table formatter which happens to get it's data for 
+formatting from dict.cc.
+
+Features:
+1. very simple
+2. scales with respect to terminal width
+
+![automatic scaling to terminal width](https://github.com/thstkn/dictcc-cli/screenshot.jpeg)
 
 # Why
-I wanted a tool for the *most convenient* and quick access to vocab through my
+I wanted a tool for the _*most convenient*_ and quick access to vocab through my
 beloved cli.
 
 # How to setup
