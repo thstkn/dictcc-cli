@@ -25,8 +25,7 @@ beloved cli.
 2. Install dependencies (fake_headers, requests, beautifulsoup4) with `pip install
     -r requirements.txt`.
 3. I recommend aliasing `search_dict_cc.py` in an rc-file of your shell in one of
-   the following two ways, where -w (--word) denotes the argument for the word,
-   that is to be looked up.
+   the following two ways.
 
    ``` bash
    alias dict="$path_to/search_dict_cc.py "
@@ -42,7 +41,7 @@ beloved cli.
 
 # How to use
 
-``` shell
+``` bash
 # regular lookup
 dict word
 
@@ -50,5 +49,5 @@ dict word
 dict word -l
 
 # set -f (--full) toggle if default 20 line table is too short 
-dict w word -f True
+dict word -f
 ```
