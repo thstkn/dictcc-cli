@@ -2,23 +2,20 @@
 
 from typing import List
 from shutil import get_terminal_size
-from numpy import long
 import requests
 from itertools import zip_longest
 from argparse import ArgumentParser
 from bs4 import BeautifulSoup
 from fake_headers import Headers
-import scipy as sp
 
 def parse():
     parser = ArgumentParser(prog='dict.cc search',
                             description='I like trains.')
-    parser.add_argument('-w', '--word', type=str,
-                        required=True)
-    parser.add_argument('-f', '--full', type=bool,
-                        required=False)
-    parser.add_argument('-l', '--language', type=bool,
-                        required=False)
+    parser.add_argument('word', type=str, help='lookup this word')
+    parser.add_argument('-f', '--full', action='store_true', required=False,
+                        help="don't shorten to 20 entries")
+    parser.add_argument('-l', '--language', action='store_true', required=False,
+                        help='start with language selector')
     return parser.parse_args()
 args = parse()
 
@@ -30,7 +27,7 @@ CODES = ['EN', 'SV', 'IS', 'RU', 'RO', 'FR', 'IT', 'SK', 'NL', 'PT', 'LA', 'FI',
          'ES', 'HU', 'NO', 'BG', 'HR', 'CS', 'DA', 'TR', 'UK', 'PL', 'EO', 'SR',
          'SQ', 'EL', 'BS', 'DE']
 CODES = list(sorted(CODES))
-CODES_PER_LINE = 15
+CODES_PER_LINE = (COLUMN_WIDTH * 2 + 5) // 4
 codes_lines = '\n'.join('  '.join(CODES[ i*CODES_PER_LINE : (i+1)*CODES_PER_LINE ])
                         for i in range(len(CODES) // CODES_PER_LINE + 1))
 

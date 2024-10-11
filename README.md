@@ -29,8 +29,8 @@ beloved cli.
    that is to be looked up.
 
    ``` bash
-   alias dict="$path_to/search_dict_cc.py -w "
-   function dict() { "$path_to/search_dict_cc.py" -w "$@" }
+   alias dict="$path_to/search_dict_cc.py "
+   function dict() { "$path_to/search_dict_cc.py" "$@" }
    ```
 
 4. As per my own preference, this script defaults to DE/EN as languages, which are
@@ -46,11 +46,9 @@ beloved cli.
 # regular lookup
 dict word
 
-# to select lanuages beforehand use -l (--language) with boolean `True` value
-dict word -l True
-# or
-dict word -l 1
+# to start with language selector before search use -l (--language) toggle
+dict word -l
 
-# use -f (--full) if default 20 line table is too short for your use
-dict word -f
+# set -f (--full) toggle if default 20 line table is too short 
+dict w word -f True
 ```
