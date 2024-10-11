@@ -9,8 +9,9 @@ from bs4 import BeautifulSoup
 from fake_headers import Headers
 
 def parse():
-    parser = ArgumentParser(prog='dict.cc search',
-                            description='I like trains.')
+    parser = ArgumentParser(prog='dict.cc-cli',
+                            description='I like trains.',
+                            epilog='Nice.')
     parser.add_argument('word', type=str, help='lookup this word')
     parser.add_argument('-f', '--full', action='store_true', required=False,
                         help="don't shorten to 20 entries")
