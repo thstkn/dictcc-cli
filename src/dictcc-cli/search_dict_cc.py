@@ -2,11 +2,13 @@
 
 from typing import List
 from shutil import get_terminal_size
+from numpy import long
 import requests
 from itertools import zip_longest
 from argparse import ArgumentParser
 from bs4 import BeautifulSoup
 from fake_headers import Headers
+import scipy as sp
 
 def parse():
     parser = ArgumentParser(prog='dict.cc search',
@@ -22,7 +24,6 @@ args = parse()
 
 
 TABLE_LENGTH = 20 if not args.full else 1000
-COLUMN_WIDTH = 50
 COLUMN_WIDTH = (get_terminal_size()[0] - 5) // 2
 
 CODES = ['EN', 'SV', 'IS', 'RU', 'RO', 'FR', 'IT', 'SK', 'NL', 'PT', 'LA', 'FI',
@@ -62,52 +63,70 @@ table_elements = soup.find_all('td', class_='td7nl')
 
 
 
-
-
 def partition_before_thresh(long_str: str, thresh: int, delim: str):
     front, _, _ = long_str[ :thresh ].rpartition(delim)
     back = long_str[ len(front): ]
     return front, back
 
 def split_long_str(long_str: str, thresh: int, delim: str):
-        last_is_too_long = True
-        tmp_res = ''
-        FIRST = True
-        while last_is_too_long:
-            dyn_thresh = thresh if FIRST else thresh-3
-            # make tuples of positions of spaces
-            spaces_before_thresh = tuple(j for j, c
-                                         in enumerate(long_str[:thresh])
-                                         if c == delim)
-            spaces_after_thresh = tuple(j for j, c
-                                        in enumerate(long_str[thresh:])
-                                        if c == delim)
-            # If there are spaces before dyn_thresh, do rpartition up to dyn_thresh
-            if len(spaces_before_thresh) > 0:
-                front, back = partition_before_thresh(long_str, dyn_thresh, delim)
-            # Elif there are spaces after dyn_thresh, do partition at earliest
-            # possible <SPACE>
-            elif len(spaces_after_thresh) >= 0:
-                front, _, back = long_str.partition(delim)
+    shorten_me = long_str
+    tmp_res = ''
+    res = None
+    FIRST = True
+    # this loop is no elegant solution
+    for i in range(20):
+        dyn_thresh = thresh if FIRST else thresh-2
+        # make tuples of positions of spaces
+        spaces_before_thresh = tuple(i for i, char
+                                     in enumerate(shorten_me[ :dyn_thresh ])
+                                     if char == delim)
+        spaces_after_thresh = tuple(i for i, char
+                                    in enumerate(shorten_me[ dyn_thresh: ])
+                                    if char == delim)
+        # If there are spaces before thresh, do rpartition up to thresh
+        if len(spaces_before_thresh) > 1:
+            front, back = partition_before_thresh(shorten_me, thresh, delim)
+        # Elif there are spaces after thresh, do partition at earliest
+        # possible <SPACE>
+        elif len(spaces_after_thresh) >= 0:
+            # split pipe symbol from the rest
+            front, _, back = shorten_me.partition(delim)
+            # split rest at first space
+            front2, _, back2 = back.partition(delim)
+            front = f'{front} {front2}'
+            back = back2
+        back = back.lstrip()
 
-            if len(back) <= dyn_thresh:
-                if FIRST:
-                    return f'{front}\n╰╴{back}'
+        if len(back) <= dyn_thresh:
+            if FIRST:
+                if back:
+                    res = f'{front}\n╰╴{back}'
                 else:
-                    return f'{tmp_res}\n{front}\n╰╴{back}'
+                    res = front
+                break
             else:
-                back = f'│ {back}'
-                if FIRST:
-                    tmp_res = front
-                else:
-                    tmp_res = f'{tmp_res}\n{front}'
-            long_str = back
-            FIRST = False
+                res = f'{tmp_res}\n{front}\n╰╴{back}'
+                break
+        else:
+            back = f'│ {back}'
+            if FIRST:
+                tmp_res = front
+            else:
+                tmp_res = f'{tmp_res}\n{front}'
+        shorten_me = back
+        FIRST = False
+    #msg = f'{res = } not initialized?'
+    #assert res, msg
+    return res
 
 def preprocess_table(table: List[str]):
     for i, line in enumerate(table):
         if len(line) > COLUMN_WIDTH:
+            if max(len(part) for part in line.split(' ')) > COLUMN_WIDTH:
+                print(f'Not enough columns in terminal!\n')
             table[i] = split_long_str(line, COLUMN_WIDTH, ' ')
+            msg = f'{table[i] = } is not initialized?'
+            assert table[i], msg
     return table[:TABLE_LENGTH]
 
 def sift_the_soup():
@@ -120,7 +139,7 @@ def sift_the_soup():
         table_right.append(' '.join(ref.text for ref in r.find_all(['a'])))
 # dfns are optional chunks of information in brackets on dict.cc which differ
 # from those brackets which are contained in the strings from a-refs above and
-# need to be added additionally
+# need to be added extra like below
         dfns_l = l.find_all(['dfn'])
         dfns_r = r.find_all(['dfn'])
         if dfns_l:
@@ -138,8 +157,7 @@ def longest_table_entry(table):
             res = max(len(part) for part in entry.split('\n'))
         except:
             res = len(entry)
-        if res > longest:
-            longest = res
+        longest = res if res > longest else longest
     return longest
 
 def len_place_holders(longest, current):
@@ -174,8 +192,9 @@ def format_multiline_lines(lsplit, rsplit, longest_l):
                 break
         else:
             if r:
-                res += f'{(longest_l) * " "}{PADDING}   {r.lstrip()}\n'
-                continue
+                res += '\n'.join([f'{(longest_l) * " "}{PADDING}   {r.lstrip()}'
+                                  for r in rsplit[ i : ]])
+                break
         if r:
             res += f'{r.lstrip()}\n'
         FIRST = False
@@ -191,6 +210,7 @@ def print_table():
     for i, (left, right) in enumerate(zip(table_left, table_right)):
         if i >= TABLE_LENGTH:
             break
+        left = left if left else '<None>'
         lsplit = list(left.split('\n')) if '\n' in left else [left]
         rsplit = list(right.split('\n')) if '\n' in right else [right]
 
