@@ -29,13 +29,13 @@ CODES = ['EN', 'SV', 'IS', 'RU', 'RO', 'FR', 'IT', 'SK', 'NL', 'PT', 'LA', 'FI',
          'SQ', 'EL', 'BS', 'DE']
 CODES = list(sorted(CODES))
 CODES_PER_LINE = (COLUMN_WIDTH * 2 + 5) // 4
-codes_lines = '\n'.join('  '.join(CODES[ i*CODES_PER_LINE : (i+1)*CODES_PER_LINE ])
-                        for i in range(len(CODES) // CODES_PER_LINE + 1))
 
 DEFAULT_LANG1 = 'de'
 DEFAULT_LANG2 = 'en'
 
 def select_languages():
+    codes_lines = '\n'.join('  '.join(CODES[ i*CODES_PER_LINE : (i+1)*CODES_PER_LINE ])
+                            for i in range(len(CODES) // CODES_PER_LINE + 1))
     user_inputs = ['', '']
     while not all(i.upper() in CODES for i in user_inputs):
         prompt = f'Enter 2 of the following country codes:\n{codes_lines}\n1: '
@@ -49,85 +49,9 @@ def select_languages():
                     print(f'Invalid language selector: {user_input}')
     return ''.join(user_inputs)
 
-fromto = f'{DEFAULT_LANG1}{DEFAULT_LANG2}'
-if args.language:
-    fromto = select_languages()
-
-
-content = requests.get(f'https://{fromto}.dict.cc/?s={args.word}',
-                       headers=Headers().generate()).content
-soup = BeautifulSoup(content, 'lxml')
-table_elements = soup.find_all('td', class_='td7nl')
-
-
-
-def partition_before_thresh(long_str: str, thresh: int, delim: str):
-    front, _, _ = long_str[ :thresh ].rpartition(delim)
-    back = long_str[ len(front): ]
-    return front, back
-
-def split_long_str(long_str: str, thresh: int, delim: str):
-    shorten_me = long_str
-    tmp_res = ''
-    res = None
-    FIRST = True
-    # this loop is no elegant solution
-    for i in range(20):
-        dyn_thresh = thresh if FIRST else thresh-2
-        # make tuples of positions of spaces
-        spaces_before_thresh = tuple(i for i, char
-                                     in enumerate(shorten_me[ :dyn_thresh ])
-                                     if char == delim)
-        spaces_after_thresh = tuple(i for i, char
-                                    in enumerate(shorten_me[ dyn_thresh: ])
-                                    if char == delim)
-        # If there are spaces before thresh, do rpartition up to thresh
-        if len(spaces_before_thresh) > 1:
-            front, back = partition_before_thresh(shorten_me, thresh, delim)
-        # Elif there are spaces after thresh, do partition at earliest
-        # possible <SPACE>
-        elif len(spaces_after_thresh) >= 0:
-            # split pipe symbol from the rest
-            front, _, back = shorten_me.partition(delim)
-            # split rest at first space
-            front2, _, back2 = back.partition(delim)
-            front = f'{front} {front2}'
-            back = back2
-        back = back.lstrip()
-
-        if len(back) <= dyn_thresh:
-            if FIRST:
-                if back:
-                    res = f'{front}\n╰╴{back}'
-                else:
-                    res = front
-                break
-            else:
-                res = f'{tmp_res}\n{front}\n╰╴{back}'
-                break
-        else:
-            back = f'│ {back}'
-            if FIRST:
-                tmp_res = front
-            else:
-                tmp_res = f'{tmp_res}\n{front}'
-        shorten_me = back
-        FIRST = False
-    #msg = f'{res = } not initialized?'
-    #assert res, msg
-    return res
-
-def preprocess_table(table: List[str]):
-    for i, line in enumerate(table):
-        if len(line) > COLUMN_WIDTH:
-            if max(len(part) for part in line.split(' ')) > COLUMN_WIDTH:
-                print(f'Not enough columns in terminal!\n')
-            table[i] = split_long_str(line, COLUMN_WIDTH, ' ')
-            msg = f'{table[i] = } is not initialized?'
-            assert table[i], msg
-    return table[:TABLE_LENGTH]
-
-def sift_the_soup():
+def sift_the_soup(content):
+    soup = BeautifulSoup(content, 'lxml')
+    table_elements = soup.find_all('td', class_='td7nl')
     table_left = []
     table_right = []
     for i in range(0, len(table_elements), 2):
@@ -144,81 +68,162 @@ def sift_the_soup():
             table_left[-1] += ' ' + ' '.join(f'[{d.text}]' for d in dfns_l)
         if dfns_r:
             table_right[-1] += ' ' + ' '.join(f'[{d.text}]' for d in dfns_r)
-    return preprocess_table(table_left), preprocess_table(table_right)
+    return table_left, table_right
 
+class TableColumn:
+    def __init__(self, entries: List[str],
+                 column_width: int, table_length: int) -> None:
+        self.column_width = column_width
+        self.table_length = table_length
+        self.delim = ' '
+        self.entries = self.preprocess(entries)
 
+    def partition_before_thresh(self, long_str: str):
+        front, _, _ = long_str[ : self.column_width ].rpartition(self.delim)
+        back = long_str[ len(front): ]
+        return front, back
 
-def longest_table_entry(table):
-    longest = 0
-    for entry in table:
-        try:
-            res = max(len(part) for part in entry.split('\n'))
-        except:
-            res = len(entry)
-        longest = res if res > longest else longest
-    return longest
-
-def len_place_holders(longest, current):
-    return longest - current + 2
-def floored_place_holders(longest, current):
-    return len_place_holders(longest, current) // 2
-def even_place_holders(longest, current):
-    return True if len_place_holders(longest, current) % 2 == 0 else False
-
-def left_with_place_holders(left, longest: int):
-        length  = len(left)
-        left = left if even_place_holders(longest, length) \
-                            else f'{left} '
-        ph = ' .' * floored_place_holders(longest, length)
-        return f'{left} {ph}'
-
-
-PADDING = '  '
-def format_multiline_lines(lsplit, rsplit, longest_l):
-    res = ''
-    FIRST = True
-    SHORT = False
-    for i, (l, r) in enumerate(zip_longest(lsplit, rsplit)):
-        if l:
-            l = l.lstrip()
-            if FIRST:
-                res += f'{left_with_place_holders(l, longest_l)}{PADDING}'
-            elif r:
-                res += f'{l}{(longest_l - len(l)) * " "}{PADDING}   '
+    def split_long_str(self, long_str: str):
+        shorten_me = long_str
+        tmp_res = ''
+        res = None
+        FIRST = True
+        # this loop is no elegant solution
+        for i in range(20):
+            dyn_thresh = self.column_width if FIRST else self.column_width-2
+            # make tuples of positions of spaces
+            spaces_before_thresh = tuple(i for i, char
+                                         in enumerate(shorten_me[ :dyn_thresh ])
+                                         if char == self.delim)
+            spaces_after_thresh = tuple(i for i, char
+                                        in enumerate(shorten_me[ dyn_thresh: ])
+                                        if char == self.delim)
+            # If there are spaces before thresh, do rpartition up to thresh
+            if len(spaces_before_thresh) > 1:
+                front, back = self.partition_before_thresh(shorten_me)
+            # Elif there are spaces after thresh, do partition at earliest
+            # possible <SPACE>
+            elif len(spaces_after_thresh) >= 0:
+                # split pipe symbol from the rest
+                front, _, back = shorten_me.partition(self.delim)
+                # split rest at first space
+                front2, _, back2 = back.partition(self.delim)
+                front = f'{front} {front2}'
+                back = back2
+            back = back.lstrip()
+            if len(back) <= dyn_thresh:
+                if FIRST:
+                    if back:
+                        res = f'{front}\n╰╴{back}'
+                    else:
+                        res = front
+                    break
+                else:
+                    res = f'{tmp_res}\n{front}\n╰╴{back}'
+                    break
             else:
-                SHORT = True
-                break
-        else:
+                back = f'│ {back}'
+                if FIRST:
+                    tmp_res = front
+                else:
+                    tmp_res = f'{tmp_res}\n{front}'
+            shorten_me = back
+            FIRST = False
+        return res
+
+    def preprocess(self, entries: List[str]):
+        for i, line in enumerate(entries):
+            if len(line) > self.column_width:
+                if max(len(part) for part in line.split(' ')) > self.column_width:
+                    print(f'Not enough columns in terminal!\n')
+                entries[i] = self.split_long_str(line)
+                msg = f'{entries[i] = } is not initialized?'
+                assert entries[i], msg
+        return entries[ : self.table_length]
+
+    def longest_entry(self):
+        longest = 0
+        for entry in self.entries:
+            try:
+                res = max(len(part) for part in entry.split('\n'))
+            except:
+                res = len(entry)
+            longest = res if res > longest else longest
+        return longest
+
+class Table:
+    def __init__(self, table_left, table_right,
+                 column_width, table_length) -> None:
+        self.left_column = TableColumn(table_left, column_width, table_length)
+        self.right_column = TableColumn(table_right, column_width, table_length)
+        self.column_width = column_width
+        self.table_length = table_length
+        self.longest_l = self.left_column.longest_entry()
+        self.padding = '  '
+
+    def len_place_holders(self, left):
+        return self.longest_l - len(left) + 2
+    def floored_place_holders(self, left):
+        return self.len_place_holders(left) // 2
+    def even_place_holders(self, left):
+        return True if self.len_place_holders(left) % 2 == 0 else False
+    def left_with_place_holders(self, left):
+            left = left if self.even_place_holders(left) else f'{left} '
+            ph = ' .' * self.floored_place_holders(left)
+            return f'{left} {ph}'
+
+    def format_multiline_lines(self, lsplit, rsplit):
+        FIRST = True
+        SHORT = False
+        res = ''
+        for i, (l, r) in enumerate(zip_longest(lsplit, rsplit)):
+            if l:
+                l = l.lstrip()
+                if FIRST:
+                    res += f'{self.left_with_place_holders(l)}{self.padding}'
+                elif r:
+                    res += f'{l}{(self.longest_l - len(l)) * " "}{self.padding}   '
+                else:
+                    SHORT = True
+                    break
+            else:
+                if r:
+                    res += '\n'.join([f'{(self.longest_l) * " "}{self.padding}   {r.lstrip()}'
+                                      for r in rsplit[ i : ]])
+                    break
             if r:
-                res += '\n'.join([f'{(longest_l) * " "}{PADDING}   {r.lstrip()}'
-                                  for r in rsplit[ i : ]])
+                res += f'{r.lstrip()}\n'
+            FIRST = False
+        # if broken simply add the rest from left as one
+        if SHORT:
+            res += "\n".join(lsplit[ i :  ])
+        return res
+
+    def print(self):
+        for i, (left, right) in enumerate(zip(self.left_column.entries, self.right_column.entries)):
+            if i >= self.table_length:
                 break
-        if r:
-            res += f'{r.lstrip()}\n'
-        FIRST = False
-    # if broken simply add the rest from left as one
-    if SHORT:
-        res += "\n".join(lsplit[ i :  ])
-    return res
+            left = left if left else '<None>'
+            lsplit = list(left.split('\n')) if '\n' in left else [left]
+            rsplit = list(right.split('\n')) if '\n' in right else [right]
+
+            if len(lsplit) == len(rsplit) == 1:
+                lwph = self.left_with_place_holders(left)
+                res = f'{lwph}{self.padding}{right}'
+            else:
+                res = self.format_multiline_lines(lsplit, rsplit)
+            print(res)
 
 
-def print_table():
-    table_left, table_right = sift_the_soup()
-    longest_l = longest_table_entry(table_left)
-    for i, (left, right) in enumerate(zip(table_left, table_right)):
-        if i >= TABLE_LENGTH:
-            break
-        left = left if left else '<None>'
-        lsplit = list(left.split('\n')) if '\n' in left else [left]
-        rsplit = list(right.split('\n')) if '\n' in right else [right]
+fromto = f'{DEFAULT_LANG1}{DEFAULT_LANG2}'
+if args.language:
+    fromto = select_languages()
 
-        if len(lsplit) == len(rsplit) == 1:
-            lwph = left_with_place_holders(left, longest_l)
-            res = f'{lwph}{PADDING}{right}'
-        else:
-            res = format_multiline_lines(lsplit, rsplit, longest_l)
-        print(res)
+content = requests.get(url=f'https://{fromto}.dict.cc/?s={args.word}',
+                       headers=Headers().generate()).content
 
+entries_left, entries_right = sift_the_soup(content)
 
-print_table()
+table = Table(entries_left, entries_right, COLUMN_WIDTH, TABLE_LENGTH)
+table.print()
 
