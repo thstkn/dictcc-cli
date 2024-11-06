@@ -76,7 +76,7 @@ class TableColumn:
         self.column_width = column_width
         self.table_length = table_length
         self.delim = ' '
-        self.entries = self.preprocess(entries)
+        self.entries = entries
 
     def partition_before_thresh(self, long_str: str):
         front, _, _ = long_str[ : self.column_width ].rpartition(self.delim)
@@ -92,18 +92,18 @@ class TableColumn:
         for i in range(20):
             dyn_thresh = self.column_width if FIRST else self.column_width-2
             # make tuples of positions of spaces
-            spaces_before_thresh = tuple(i for i, char
+            delims_before_thresh = tuple(i for i, char
                                          in enumerate(shorten_me[ :dyn_thresh ])
                                          if char == self.delim)
-            spaces_after_thresh = tuple(i for i, char
+            delims_after_thresh = tuple(i for i, char
                                         in enumerate(shorten_me[ dyn_thresh: ])
                                         if char == self.delim)
             # If there are spaces before thresh, do rpartition up to thresh
-            if len(spaces_before_thresh) > 1:
+            if len(delims_before_thresh) > 1:
                 front, back = self.partition_before_thresh(shorten_me)
-            # Elif there are spaces after thresh, do partition at earliest
-            # possible <SPACE>
-            elif len(spaces_after_thresh) >= 0:
+            # Elif there are delim after thresh, do partition at earliest
+            # possible <delim>
+            elif len(delims_after_thresh) >= 0:
                 # split pipe symbol from the rest
                 front, _, back = shorten_me.partition(self.delim)
                 # split rest at first space
@@ -131,7 +131,8 @@ class TableColumn:
             FIRST = False
         return res
 
-    def preprocess(self, entries: List[str]):
+    def preprocess(self):
+        entries = self.entries.copy()
         for i, line in enumerate(entries):
             if len(line) > self.column_width:
                 if max(len(part) for part in line.split(' ')) > self.column_width:
@@ -139,7 +140,7 @@ class TableColumn:
                 entries[i] = self.split_long_str(line)
                 msg = f'{entries[i] = } is not initialized?'
                 assert entries[i], msg
-        return entries[ : self.table_length]
+        self.entries = entries[ : self.table_length]
 
     def longest_entry(self):
         longest = 0
@@ -161,6 +162,12 @@ class Table:
         self.longest_l = self.left_column.longest_entry()
         self.padding = '  '
 
+        if any(len(left) + len(right) >= get_terminal_size()[0]
+               for left, right in zip(self.left_column.entries, self.right_column.entries)):
+            self.left_column.preprocess()
+            self.right_column.preprocess()
+
+
     def len_place_holders(self, left):
         return self.longest_l - len(left) + 2
     def floored_place_holders(self, left):
@@ -169,8 +176,7 @@ class Table:
         return True if self.len_place_holders(left) % 2 == 0 else False
     def left_with_place_holders(self, left):
             left = left if self.even_place_holders(left) else f'{left} '
-            ph = ' .' * self.floored_place_holders(left)
-            return f'{left} {ph}'
+            return f'{left} {' .' * self.floored_place_holders(left)}'
 
     def format_multiline_lines(self, lsplit, rsplit):
         FIRST = True
@@ -203,7 +209,11 @@ class Table:
         for i, (left, right) in enumerate(zip(self.left_column.entries, self.right_column.entries)):
             if i >= self.table_length:
                 break
-            left = left if left else '<None>'
+            msg = f'This var should already be initialized here: {left = }'
+            assert left, msg
+            msg = f'This var should already be initialized here: {right = }'
+            assert right, msg
+            #left = left if left else '<None>'
             lsplit = list(left.split('\n')) if '\n' in left else [left]
             rsplit = list(right.split('\n')) if '\n' in right else [right]
 
