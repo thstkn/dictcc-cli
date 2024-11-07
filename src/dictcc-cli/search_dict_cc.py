@@ -78,38 +78,45 @@ class TableColumn:
         self.delim = ' '
         self.entries = entries
 
-    def partition_before_thresh(self, long_str: str):
-        front, _, _ = long_str[ : self.column_width ].rpartition(self.delim)
+    def partition_before_thresh(self, long_str: str, longest_other_column: int):
+        thresh = self.column_width * 2 - longest_other_column
+        front, _, _ = long_str[ : thresh ].rpartition(self.delim)
         back = long_str[ len(front): ]
         return front, back
 
-    def split_long_str(self, long_str: str):
-        shorten_me = long_str
+    def partition_after_thresh(self, long_str: str):
+        # split pipe symbol from the rest
+        front, _, back = long_str.partition(self.delim)
+        # split rest at first space
+        front2, _, back2 = back.partition(self.delim)
+        return f'{front} {front2}', back2
+
+    def split_long_str(self, shorten_me: str, longest_other_column: int):
         tmp_res = ''
         res = None
         FIRST = True
+        back = None
         # this loop is no elegant solution
-        for i in range(20):
+        for _ in range(20):
             dyn_thresh = self.column_width if FIRST else self.column_width-2
+            dyn_thresh = dyn_thresh + self.column_width - longest_other_column
             # make tuples of positions of spaces
             delims_before_thresh = tuple(i for i, char
-                                         in enumerate(shorten_me[ :dyn_thresh ])
+                                         in enumerate(shorten_me[ : dyn_thresh ])
                                          if char == self.delim)
             delims_after_thresh = tuple(i for i, char
-                                        in enumerate(shorten_me[ dyn_thresh: ])
+                                        in enumerate(shorten_me[ dyn_thresh : ])
                                         if char == self.delim)
             # If there are spaces before thresh, do rpartition up to thresh
             if len(delims_before_thresh) > 1:
-                front, back = self.partition_before_thresh(shorten_me)
+                front, back = self.partition_before_thresh(shorten_me,
+                                                           longest_other_column)
             # Elif there are delim after thresh, do partition at earliest
             # possible <delim>
             elif len(delims_after_thresh) >= 0:
-                # split pipe symbol from the rest
-                front, _, back = shorten_me.partition(self.delim)
-                # split rest at first space
-                front2, _, back2 = back.partition(self.delim)
-                front = f'{front} {front2}'
-                back = back2
+                front, back = self.partition_after_thresh(shorten_me)
+            msg = f'This needs to have been initialized by now {back = }'
+            assert back, msg
             back = back.lstrip()
             if len(back) <= dyn_thresh:
                 if FIRST:
@@ -131,13 +138,13 @@ class TableColumn:
             FIRST = False
         return res
 
-    def preprocess(self):
+    def preprocess(self, longest_other_column: int):
         entries = self.entries.copy()
         for i, line in enumerate(entries):
-            if len(line) > self.column_width:
+            if len(line) > self.column_width * 2 - longest_other_column:
                 if max(len(part) for part in line.split(' ')) > self.column_width:
                     print(f'Not enough columns in terminal!\n')
-                entries[i] = self.split_long_str(line)
+                entries[i] = self.split_long_str(line, longest_other_column)
                 msg = f'{entries[i] = } is not initialized?'
                 assert entries[i], msg
         self.entries = entries[ : self.table_length]
@@ -159,14 +166,27 @@ class Table:
         self.right_column = TableColumn(table_right, column_width, table_length)
         self.column_width = column_width
         self.table_length = table_length
-        self.longest_l = self.left_column.longest_entry()
         self.padding = '  '
+        if any(len(left) + len(right) + 5 >= get_terminal_size()[0]
+               for left in self.left_column.entries
+               for right in self.right_column.entries):
 
-        if any(len(left) + len(right) >= get_terminal_size()[0]
-               for left, right in zip(self.left_column.entries, self.right_column.entries)):
-            self.left_column.preprocess()
-            self.right_column.preprocess()
+            longest_right = self.right_column.longest_entry() \
+                            if self.right_column.longest_entry() <= self.column_width else \
+                            self.column_width
+            #print(f'{longest_right = }')
+            self.left_column.preprocess(longest_right)
 
+
+            longest_left = self.left_column.longest_entry() \
+                            if self.left_column.longest_entry() <= self.column_width else \
+                            self.column_width
+            self.right_column.preprocess(longest_left)
+
+
+        # this can only be determined after preprocessing, as it depends on
+        # where lines have been broken.
+        self.longest_l = self.left_column.longest_entry()
 
     def len_place_holders(self, left):
         return self.longest_l - len(left) + 2
@@ -180,46 +200,39 @@ class Table:
 
     def format_multiline_lines(self, lsplit, rsplit):
         FIRST = True
-        SHORT = False
         res = ''
         for i, (l, r) in enumerate(zip_longest(lsplit, rsplit)):
             if l:
-                l = l.lstrip()
                 if FIRST:
                     res += f'{self.left_with_place_holders(l)}{self.padding}'
                 elif r:
                     res += f'{l}{(self.longest_l - len(l)) * " "}{self.padding}   '
                 else:
-                    SHORT = True
+                    # if no further r lines found simply add the rest from left as one
+                    res += "\n".join(lsplit[ i :  ])
                     break
             else:
                 if r:
-                    res += '\n'.join([f'{(self.longest_l) * " "}{self.padding}   {r.lstrip()}'
+                    # if no further l lines found simply add the rest from right as one
+                    res += '\n'.join([f'{(self.longest_l) * " "}{self.padding}   {r}'
                                       for r in rsplit[ i : ]])
                     break
             if r:
-                res += f'{r.lstrip()}\n'
+                res += f'{r}\n'
             FIRST = False
-        # if broken simply add the rest from left as one
-        if SHORT:
-            res += "\n".join(lsplit[ i :  ])
         return res
 
-    def print(self):
+    def show(self):
         for i, (left, right) in enumerate(zip(self.left_column.entries, self.right_column.entries)):
             if i >= self.table_length:
                 break
-            msg = f'This var should already be initialized here: {left = }'
-            assert left, msg
-            msg = f'This var should already be initialized here: {right = }'
-            assert right, msg
-            #left = left if left else '<None>'
             lsplit = list(left.split('\n')) if '\n' in left else [left]
             rsplit = list(right.split('\n')) if '\n' in right else [right]
-
+            lsplit = [l.lstrip() for l in lsplit]
+            rsplit = [r.lstrip() for r in rsplit]
+            # if entries havent been broken take this shortcut
             if len(lsplit) == len(rsplit) == 1:
-                lwph = self.left_with_place_holders(left)
-                res = f'{lwph}{self.padding}{right}'
+                res = f'{self.left_with_place_holders(left)}{self.padding}{right}'
             else:
                 res = self.format_multiline_lines(lsplit, rsplit)
             print(res)
@@ -235,5 +248,5 @@ content = requests.get(url=f'https://{fromto}.dict.cc/?s={args.word}',
 entries_left, entries_right = sift_the_soup(content)
 
 table = Table(entries_left, entries_right, COLUMN_WIDTH, TABLE_LENGTH)
-table.print()
+table.show()
 
