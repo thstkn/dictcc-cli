@@ -142,14 +142,14 @@ class TableColumn:
         entries = self.entries.copy()
         for i, line in enumerate(entries):
             if len(line) > self.column_width * 2 - longest_other_column:
-                if max(len(part) for part in line.split(' ')) > self.column_width:
+                if any(len(part) for part in line.split(' ')) > self.column_width:
                     print(f'Not enough columns in terminal!\n')
                 entries[i] = self.split_long_str(line, longest_other_column)
                 msg = f'{entries[i] = } is not initialized?'
                 assert entries[i], msg
         self.entries = entries[ : self.table_length]
 
-    def longest_entry(self):
+    def longest_entry(self) -> int:
         longest = 0
         for entry in self.entries:
             try:
@@ -177,12 +177,10 @@ class Table:
             #print(f'{longest_right = }')
             self.left_column.preprocess(longest_right)
 
-
             longest_left = self.left_column.longest_entry() \
                             if self.left_column.longest_entry() <= self.column_width else \
                             self.column_width
             self.right_column.preprocess(longest_left)
-
 
         # this can only be determined after preprocessing, as it depends on
         # where lines have been broken.
@@ -198,7 +196,7 @@ class Table:
             left = left if self.even_place_holders(left) else f'{left} '
             return f'{left} {' .' * self.floored_place_holders(left)}'
 
-    def format_multiline_lines(self, lsplit, rsplit):
+    def format_multiline_lines(self, lsplit, rsplit) -> str:
         FIRST = True
         res = ''
         for i, (l, r) in enumerate(zip_longest(lsplit, rsplit)):
@@ -220,9 +218,10 @@ class Table:
             if r:
                 res += f'{r}\n'
             FIRST = False
-        return res
+        # remove excessive new lines with rstrip
+        return res.rstrip()
 
-    def show(self):
+    def show(self) -> None:
         for i, (left, right) in enumerate(zip(self.left_column.entries, self.right_column.entries)):
             if i >= self.table_length:
                 break
