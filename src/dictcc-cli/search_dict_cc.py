@@ -1,6 +1,6 @@
 #!/bin/python3.13
 
-from typing import List
+from typing import List, Optional
 from shutil import get_terminal_size
 import requests
 from itertools import zip_longest
@@ -18,10 +18,9 @@ def parse():
     parser.add_argument('-l', '--language', action='store_true', required=False,
                         help='start with language selector')
     return parser.parse_args()
-args = parse()
+ARGS = parse()
 
-
-TABLE_LENGTH = 20 if not args.full else 1000
+TABLE_LENGTH = 20 if not ARGS.full else 1000
 COLUMN_WIDTH = (get_terminal_size()[0] - 5) // 2
 
 CODES = ['EN', 'SV', 'IS', 'RU', 'RO', 'FR', 'IT', 'SK', 'NL', 'PT', 'LA', 'FI',
@@ -30,16 +29,23 @@ CODES = ['EN', 'SV', 'IS', 'RU', 'RO', 'FR', 'IT', 'SK', 'NL', 'PT', 'LA', 'FI',
 CODES = list(sorted(CODES))
 CODES_PER_LINE = (COLUMN_WIDTH * 2 + 5) // 4
 
-DEFAULT_LANG1 = 'de'
-DEFAULT_LANG2 = 'en'
+DEFAULT_LANG1, DEFAULT_LANG2 = 'de', 'en'
 
 def select_languages():
-    codes_lines = '\n'.join('  '.join(CODES[ i*CODES_PER_LINE : (i+1)*CODES_PER_LINE ])
-                            for i in range(len(CODES) // CODES_PER_LINE + 1))
+    country_codes = '\n'.join('  '.join(CODES[ i*CODES_PER_LINE : (i+1)*CODES_PER_LINE ])
+                              for i in range(len(CODES) // CODES_PER_LINE + 1))
+    print(f'{country_codes}')
     user_inputs = ['', '']
+    FIRST = True
     while not all(i.upper() in CODES for i in user_inputs):
-        prompt = f'Enter 2 of the following country codes:\n{codes_lines}\n1: '
-        user_inputs = [input(prompt), input('2: ')]
+        prompt = f'Enter two country codes: ' if FIRST else \
+                 f'Enter two space-separated country codes: '
+        FIRST = False
+        try:
+            in1, in2 = input(prompt).split()
+        except Exception as e:
+            continue
+        user_inputs = [in1, in2]
         for i, user_input in enumerate(user_inputs):
             if user_input.upper() not in CODES:
                 if i >= 1 and user_input == '':
@@ -70,6 +76,13 @@ def sift_the_soup(content):
             table_right[-1] += ' ' + ' '.join(f'[{d.text}]' for d in dfns_r)
     return table_left, table_right
 
+fromto = f'{DEFAULT_LANG1}{DEFAULT_LANG2}'
+if ARGS.language:
+    fromto = select_languages()
+    print()
+CONTENT = requests.get(url=f'https://{fromto}.dict.cc/?s={ARGS.word}',
+                       headers=Headers().generate()).content
+
 class TableColumn:
     def __init__(self, entries: List[str],
                  column_width: int, table_length: int) -> None:
@@ -91,15 +104,16 @@ class TableColumn:
         front2, _, back2 = back.partition(self.delim)
         return f'{front} {front2}', back2
 
-    def split_long_str(self, shorten_me: str, longest_other_column: int):
+    def split_long_str(self, shorten_me: str,
+                       longest_other_column: int) -> Optional[str]:
+        dyn_thresh = 2 * self.column_width - longest_other_column
         tmp_res = ''
         res = None
         FIRST = True
         back = None
         # this loop is no elegant solution
         for _ in range(20):
-            dyn_thresh = self.column_width if FIRST else self.column_width-2
-            dyn_thresh = dyn_thresh + self.column_width - longest_other_column
+            dyn_thresh = dyn_thresh if FIRST else dyn_thresh - 2
             # make tuples of positions of spaces
             delims_before_thresh = tuple(i for i, char
                                          in enumerate(shorten_me[ : dyn_thresh ])
@@ -115,8 +129,8 @@ class TableColumn:
             # possible <delim>
             elif len(delims_after_thresh) >= 0:
                 front, back = self.partition_after_thresh(shorten_me)
-            msg = f'This needs to have been initialized by now {back = }'
-            assert back, msg
+            if not back:
+                return res
             back = back.lstrip()
             if len(back) <= dyn_thresh:
                 if FIRST:
@@ -138,16 +152,19 @@ class TableColumn:
             FIRST = False
         return res
 
-    def preprocess(self, longest_other_column: int):
+    def preprocess(self, longest_other_column: int) -> bool:
         entries = self.entries.copy()
         for i, line in enumerate(entries):
             if len(line) > self.column_width * 2 - longest_other_column:
-                if any(len(part) for part in line.split(' ')) > self.column_width:
-                    print(f'Not enough columns in terminal!\n')
+                #if any(len(part) for part in line.split(' ')) > self.column_width:
+                    #print(f'Not enough columns in terminal!\n')
                 entries[i] = self.split_long_str(line, longest_other_column)
-                msg = f'{entries[i] = } is not initialized?'
-                assert entries[i], msg
+                #msg = f'{entries[i] = } is not initialized?'
+                #assert entries[i], msg
+                if not entries[i]:
+                    return False
         self.entries = entries[ : self.table_length]
+        return True
 
     def longest_entry(self) -> int:
         longest = 0
@@ -160,28 +177,35 @@ class TableColumn:
         return longest
 
 class Table:
-    def __init__(self, table_left, table_right,
-                 column_width, table_length) -> None:
-        self.left_column = TableColumn(table_left, column_width, table_length)
-        self.right_column = TableColumn(table_right, column_width, table_length)
+    def __init__(self, column_width, table_length) -> None:
+        entries_left, entries_right = sift_the_soup(CONTENT)
+        self.left_column = TableColumn(entries_left, column_width, table_length)
+        self.right_column = TableColumn(entries_right, column_width, table_length)
+        if not self.left_column.entries:
+            print('No result')
+            return
         self.column_width = column_width
         self.table_length = table_length
         self.padding = '  '
+        # only preprocess if needed
+        ABORT = False
         if any(len(left) + len(right) + 5 >= get_terminal_size()[0]
                for left in self.left_column.entries
                for right in self.right_column.entries):
-
+            msg = f'Terminal too small? Only {get_terminal_size()[0]} columns!\n'
             longest_right = self.right_column.longest_entry() \
                             if self.right_column.longest_entry() <= self.column_width else \
                             self.column_width
-            #print(f'{longest_right = }')
-            self.left_column.preprocess(longest_right)
+            if not self.left_column.preprocess(longest_right):
+                ABORT = True
 
             longest_left = self.left_column.longest_entry() \
-                            if self.left_column.longest_entry() <= self.column_width else \
-                            self.column_width
-            self.right_column.preprocess(longest_left)
-
+                           if self.left_column.longest_entry() <= self.column_width else \
+                           self.column_width
+            if not self.right_column.preprocess(longest_left):
+                ABORT = True
+            if ABORT:
+                print(msg)
         # this can only be determined after preprocessing, as it depends on
         # where lines have been broken.
         self.longest_l = self.left_column.longest_entry()
@@ -202,10 +226,13 @@ class Table:
         for i, (l, r) in enumerate(zip_longest(lsplit, rsplit)):
             if l:
                 if FIRST:
+                    FIRST = False
                     res += f'{self.left_with_place_holders(l)}{self.padding}'
                 elif r:
+                    FIRST = False
                     res += f'{l}{(self.longest_l - len(l)) * " "}{self.padding}   '
                 else:
+                    FIRST = False
                     # if no further r lines found simply add the rest from left as one
                     res += "\n".join(lsplit[ i :  ])
                     break
@@ -217,9 +244,8 @@ class Table:
                     break
             if r:
                 res += f'{r}\n'
-            FIRST = False
-        # remove excessive new lines with rstrip
-        return res.rstrip()
+            #FIRST = False
+        return res.rstrip()     # remove excessive new lines with rstrip
 
     def show(self) -> None:
         for i, (left, right) in enumerate(zip(self.left_column.entries, self.right_column.entries)):
@@ -234,18 +260,10 @@ class Table:
                 res = f'{self.left_with_place_holders(left)}{self.padding}{right}'
             else:
                 res = self.format_multiline_lines(lsplit, rsplit)
+            #res = res if res.isspace() else "No result"
             print(res)
 
 
-fromto = f'{DEFAULT_LANG1}{DEFAULT_LANG2}'
-if args.language:
-    fromto = select_languages()
-
-content = requests.get(url=f'https://{fromto}.dict.cc/?s={args.word}',
-                       headers=Headers().generate()).content
-
-entries_left, entries_right = sift_the_soup(content)
-
-table = Table(entries_left, entries_right, COLUMN_WIDTH, TABLE_LENGTH)
+table = Table(COLUMN_WIDTH, TABLE_LENGTH)
 table.show()
 

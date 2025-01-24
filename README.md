@@ -28,7 +28,7 @@ beloved cli.
    the following two ways.
 
    ``` bash
-   alias dict="$path_to/search_dict_cc.py "
+   alias dict="/usr/bin/python313 $path_to/search_dict_cc.py "
    function dict() { "$path_to/search_dict_cc.py" "$@" }
    ```
 
