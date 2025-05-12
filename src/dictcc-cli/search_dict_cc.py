@@ -1,6 +1,4 @@
-#!/bin/python3.13
-
-from typing import List, Optional
+from typing import Optional
 from shutil import get_terminal_size
 import requests
 from itertools import zip_longest
@@ -31,7 +29,7 @@ CODES_PER_LINE = (COLUMN_WIDTH * 2 + 5) // 4
 
 DEFAULT_LANG1, DEFAULT_LANG2 = 'de', 'en'
 
-def select_languages():
+def select_languages() -> str:
     country_codes = '\n'.join('  '.join(CODES[ i*CODES_PER_LINE : (i+1)*CODES_PER_LINE ])
                               for i in range(len(CODES) // CODES_PER_LINE + 1))
     print(f'{country_codes}')
@@ -55,7 +53,7 @@ def select_languages():
                     print(f'Invalid language selector: {user_input}')
     return ''.join(user_inputs)
 
-def sift_the_soup(content):
+def sift_the_soup(content) -> tuple[list[str], list[str]]:
     soup = BeautifulSoup(content, 'lxml')
     table_elements = soup.find_all('td', class_='td7nl')
     table_left = []
@@ -84,20 +82,21 @@ CONTENT = requests.get(url=f'https://{fromto}.dict.cc/?s={ARGS.word}',
                        headers=Headers().generate()).content
 
 class TableColumn:
-    def __init__(self, entries: List[str],
+    def __init__(self, entries: list[str],
                  column_width: int, table_length: int) -> None:
+        self.entries = entries
         self.column_width = column_width
         self.table_length = table_length
         self.delim = ' '
-        self.entries = entries
 
-    def partition_before_thresh(self, long_str: str, longest_other_column: int):
+    def partition_before_thresh(self, long_str: str,
+                                longest_other_column: int) -> tuple[str, str]:
         thresh = self.column_width * 2 - longest_other_column
         front, _, _ = long_str[ : thresh ].rpartition(self.delim)
         back = long_str[ len(front): ]
         return front, back
 
-    def partition_after_thresh(self, long_str: str):
+    def partition_after_thresh(self, long_str: str) -> tuple[str, str]:
         # split pipe symbol from the rest
         front, _, back = long_str.partition(self.delim)
         # split rest at first space
@@ -193,15 +192,12 @@ class Table:
                for left in self.left_column.entries
                for right in self.right_column.entries):
             msg = f'Terminal too small? Only {get_terminal_size()[0]} columns!\n'
-            longest_right = self.right_column.longest_entry() \
-                            if self.right_column.longest_entry() <= self.column_width else \
-                            self.column_width
+            rlong = self.right_column.longest_entry()
+            longest_right = rlong if rlong <= self.column_width else self.column_width
             if not self.left_column.preprocess(longest_right):
                 ABORT = True
-
-            longest_left = self.left_column.longest_entry() \
-                           if self.left_column.longest_entry() <= self.column_width else \
-                           self.column_width
+            llong = self.left_column.longest_entry()
+            longest_left = llong if llong <= self.column_width else self.column_width
             if not self.right_column.preprocess(longest_left):
                 ABORT = True
             if ABORT:
@@ -210,13 +206,13 @@ class Table:
         # where lines have been broken.
         self.longest_l = self.left_column.longest_entry()
 
-    def len_place_holders(self, left):
+    def len_place_holders(self, left) -> int:
         return self.longest_l - len(left) + 2
-    def floored_place_holders(self, left):
+    def floored_place_holders(self, left) -> int:
         return self.len_place_holders(left) // 2
-    def even_place_holders(self, left):
+    def even_place_holders(self, left) -> bool:
         return True if self.len_place_holders(left) % 2 == 0 else False
-    def left_with_place_holders(self, left):
+    def left_with_place_holders(self, left) -> str:
             left = left if self.even_place_holders(left) else f'{left} '
             return f'{left} {' .' * self.floored_place_holders(left)}'
 
