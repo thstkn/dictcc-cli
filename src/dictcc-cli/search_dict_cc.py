@@ -19,7 +19,7 @@ def parse():
 ARGS = parse()
 
 TABLE_LENGTH = 20 if not ARGS.full else 1000
-COLUMN_WIDTH = (get_terminal_size()[0] - 5) // 2
+COLUMN_WIDTH = (get_terminal_size()[0] - 5) // 2 - 1
 
 CODES = ['EN', 'SV', 'IS', 'RU', 'RO', 'FR', 'IT', 'SK', 'NL', 'PT', 'LA', 'FI',
          'ES', 'HU', 'NO', 'BG', 'HR', 'CS', 'DA', 'TR', 'UK', 'PL', 'EO', 'SR',
