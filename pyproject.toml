@@ -7,7 +7,7 @@ where = ["src"]
 
 [project]
 name = "dictcc-mini"
-version = "0.1.0"
+version = "0.1.1"
 authors = [
   { name="thstkn", email="dev@veddeler.org" },
 ]
@@ -31,4 +31,4 @@ dependencies = [
 "Homepage" = "https://github.com/thstkn/dictcc-mini"
 
 [project.scripts]
-dict = "src.dictcc_mini.cli:main"
+dict = "dictcc_mini.cli:main"
