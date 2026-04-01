@@ -1,0 +1,4 @@
+include README.md
+include LICENSE
+recursive-include assets *.jpeg
+recursive-include src *.py
