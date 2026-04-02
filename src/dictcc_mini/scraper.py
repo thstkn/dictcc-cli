@@ -1,7 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 from fake_headers import Headers
-from dictcc_mini.languages import DEFAULT_LANG1, DEFAULT_LANG2
+from dictcc_mini.config import DEFAULT_LANG1, DEFAULT_LANG2
 
 def get_url(word, fromto=None) -> str:
     if not fromto:

@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 from shutil import get_terminal_size
 
-from dictcc_mini.languages import CODES, DEFAULT_LANG1
+from dictcc_mini.config import CODES, DEFAULT_LANG1
 from dictcc_mini.scraper import scrape
 from dictcc_mini.table import Table
 

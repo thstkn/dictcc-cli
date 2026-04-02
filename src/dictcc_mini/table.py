@@ -1,134 +1,141 @@
 from shutil import get_terminal_size
 from itertools import zip_longest
-from typing import Optional
+from dictcc_mini.config import FIELD_STYLES, DEFAULT_STYLE
 
 class TableColumn:
     def __init__(self, entries: list[str],
-                 column_width: int, table_length: int) -> None:
+                 column_width: int, table_length: int, terminal_width: int,
+                 field_indicator_style=DEFAULT_STYLE) -> None:
         self.entries = entries
         self.column_width = column_width
         self.table_length = table_length
+        self.terminal_width = terminal_width
         self.delim = ' '
         self.longest_other_column: None | int = None
         self.line_width_thresh: None | int = None
+        self.field_indicator_style: str = field_indicator_style
+        self.verbosity = 'MINIMAL'
 
-    def partition_before_thresh(self, long_str: str) -> tuple[str, str]:
-        front, _, _ = long_str[ : self.line_width_thresh ].rpartition(self.delim)
-        back = long_str[ len(front): ]
-        return front, back
-
-    def partition_after_thresh(self, long_str: str) -> tuple[str, str]:
-        # split pipe symbol from the rest
-        front, _, back = long_str.partition(self.delim)
-        # split rest at first space
-        front2, _, back2 = back.partition(self.delim)
-        return f'{front} {front2}', back2
-
-    def split_long_str(self, shorten_me: str) -> Optional[str]:
-        tmp_res = ''
-        res = None
-        FIRST = True
-        back = None
-        # this loop is no elegant solution - enough for 33 line breaks
-        for _ in range(len(shorten_me)):
-            self.line_width_thresh = self.line_width_thresh if FIRST \
-                                     else self.line_width_thresh - 2
-            # make tuples of positions of spaces
-            delims_before_thresh = \
-                    tuple(i for i, char
-                          in enumerate(shorten_me[ : self.line_width_thresh ])
-                          if char == self.delim)
-            delims_after_thresh = \
-                    tuple(i for i, char
-                          in enumerate(shorten_me[ self.line_width_thresh : ])
-                          if char == self.delim)
-            # If there are spaces before thresh, do rpartition up to thresh
-            if len(delims_before_thresh) > 1:
-                front, back = self.partition_before_thresh(shorten_me)
-            # Elif there are delim after thresh, do partition at earliest
-            # possible <delim>
-            elif len(delims_after_thresh) >= 0:
-                front, back = self.partition_after_thresh(shorten_me)
-            if not back:
-                return res
-            back = back.lstrip()
-            if len(back) <= self.line_width_thresh:
-                if FIRST:
-                    if back:
-                        res = f'{front}\n╰╴{back}'
-                    else:
-                        res = front
-                    break
-                else:
-                    res = f'{tmp_res}\n{front}\n╰╴{back}'
-                    break
-            else:
-                back = f'│ {back}'
-                if FIRST:
-                    tmp_res = front
-                else:
-                    tmp_res = f'{tmp_res}\n{front}'
-            shorten_me = back
-            FIRST = False
-        return res
-
-    def preprocess(self, longest_other_column: int) -> bool:
-        self.longest_other_column = longest_other_column
-        self.line_width_thresh = self.column_width * 2 - longest_other_column
-        entries = self.entries.copy()
-        for i, line in enumerate(entries):
-            if len(line) > self.line_width_thresh:
-                #if any(len(part) for part in line.split(' ')) > self.column_width:
-                    #print(f'Not enough columns in terminal!\n')
-                entries[i] = self.split_long_str(line)
-                #msg = f'{entries[i] = } is not initialized?'
-                #assert entries[i], msg
-                if not entries[i]:
-                    return False
-            if i+1 >= self.table_length:
-                break
-        self.entries = entries
-        return True
-
+    @property
+    def field_indicators(self) -> tuple[str, str, str]:
+        return FIELD_STYLES[self.field_indicator_style]
+    @property
+    def stripped_indicators(self) -> tuple[str | None, str | None, str | None]:
+        return (stripped if (stripped := ind.strip()) else None
+                for ind in self.field_indicators)
+    @property
     def longest_entry(self) -> int:
         longest = 0
         for i, entry in enumerate(self.entries):
             if i+1 > self.table_length:
                 break
-            res = len(entry) if not '\n' in entry else \
-                  max(len(part) for part in entry.split('\n'))
+            try:
+                res = len(entry) if not '\n' in entry else \
+                      max(len(part) for part in entry.split('\n'))
+            except Exception as e:
+                print(f'exception:\t{e}\n')
             longest = res if res > longest else longest
         return longest
 
+    def get_split_index(self, string: str, start, available_width) -> int:
+        split_index = string.rfind(self.delim, start, available_width)
+        if split_index == -1:
+            split_index = string.find(self.delim, available_width)
+            if split_index == -1:
+                split_index = available_width
+        return split_index
+
+    def get_best_head(self, long_str: str, columns: int) \
+            -> tuple[str | None, str | None]:
+        split_index = self.get_split_index(long_str, 0, columns)
+        head = long_str[ :split_index ].rstrip()
+        long_str = long_str[ split_index: ].lstrip()
+        return head, long_str
+
+    def partition_to_column(self, long_str: str, columns: int) -> str:
+        head, long_str = self.get_best_head(long_str, columns)
+        if len(long_str) <= columns:
+            return '\n'.join((head, long_str))
+        else:
+            return '\n'.join((head, self.partition_to_column(long_str, columns)))
+
+    def split_long_str(self, shorten_me: str) -> str | None:
+        field_ind0, field_ind1, field_ind2 = self.field_indicators
+        lines = []
+        is_first_line = True
+        while True:
+            is_first_line = (len(lines) == 0)
+            current_indicator = field_ind0 if is_first_line else field_ind1
+            available_width = self.line_width_thresh - len(current_indicator)
+            # last line! base condition
+            if len(shorten_me) <= available_width:
+                break
+            # add line and update shorten_me
+            head, shorten_me = self.get_best_head(shorten_me, available_width)
+            if not head:
+                raise ValueError(f'{head = } needs to be assigned here!')
+            lines.append(f'{current_indicator}{head}')
+        last_indicator = field_ind0 if not lines else field_ind2
+        lines.append(f'{last_indicator}{shorten_me}')
+        return "\n".join(lines)
+
+    def preprocess(self, longest_other_column: int) -> None:
+        self.longest_other_column = longest_other_column
+        self.line_width_thresh = self.column_width * 2 - longest_other_column - 2
+        entries = self.entries.copy()
+        for i, line in enumerate(entries):
+            if len(line) > self.line_width_thresh:
+                entries[i] = self.split_long_str(line)
+                if not entries[i]:
+                    msg = f'{entries[i] = } is not initialized?\n{line}'
+                    raise ValueError(msg)
+            if i+1 >= self.table_length:
+                break
+        self.entries = entries
+
 class Table:
-    def __init__(self, entries_left, entries_right, full_table) -> None:
+    def __init__(self, entries_left, entries_right, full_table,
+                 verbosity: str = 'MINIMAL') -> None:
         self.table_length = 20 if not full_table else 1000
         terminal_width = get_terminal_size()[0]
         self.column_width = (terminal_width - 2) // 2
         self.pad_right_of_placeholders = ''
         self.pad_left_of_placeholders = ''
+        self.verbosity = verbosity
+        CENTER_MARGIN = 3
 
-        left_column = TableColumn(entries_left, self.column_width, self.table_length)
-        right_column = TableColumn(entries_right, self.column_width, self.table_length)
+        left_column = TableColumn(entries_left, self.column_width,
+                                  self.table_length, terminal_width)
+        right_column = TableColumn(entries_right, self.column_width,
+                                   self.table_length, terminal_width)
 
-        TOO_SMALL = False
-        if any(len(left) + len(right) + 3 >= terminal_width
+        if any(len(left) + len(right) + CENTER_MARGIN >= terminal_width
                for left in left_column.entries
                for right in right_column.entries):
-            rlong = right_column.longest_entry()
+
+            rlong = right_column.longest_entry
             longest_right = rlong if rlong <= self.column_width else self.column_width
-            if not left_column.preprocess(longest_right):
-                TOO_SMALL = True
-            llong = left_column.longest_entry()
+
+            if verbosity == 'DEBUG':
+                print(f'{rlong = }\n{longest_right = }\n')
+            left_column.preprocess(longest_right)
+            llong = left_column.longest_entry
             longest_left = llong if llong <= self.column_width else self.column_width
-            if not right_column.preprocess(longest_left):
-                TOO_SMALL = True
-            if TOO_SMALL:
-                print(f'Terminal too small? Only {terminal_width} columns!\n')
+
+            if verbosity == 'DEBUG':
+                print(f'{llong = }\n{longest_left = }\n')
+            right_column.preprocess(longest_left)
+
+        SUM = left_column.longest_entry + right_column.longest_entry + CENTER_MARGIN
+        if SUM > terminal_width:
+            msg = f'Terminal very small: {terminal_width} columns. ' \
+                  f'Expect tearing.\n'
+            print(self.partition_to_column(msg, columns=terminal_width))
+
         self.left_column, self.right_column = left_column, right_column
         # this can only be determined after preprocessing, as it depends on
         # where lines have been broken.
-        self.longest_l = left_column.longest_entry()
+        self.longest_l = left_column.longest_entry
 
     def len_place_holders(self, left) -> int:
         return self.longest_l - len(left)
@@ -143,7 +150,7 @@ class Table:
         return f'{left}{self.pad_left_of_placeholders}' \
                f'{place_holders}{self.pad_right_of_placeholders}'
 
-    def format_multiline_lines(self, lsplit, rsplit) -> str:
+    def format_multiline_entries(self, lsplit, rsplit) -> str:
         FIRST = True
         res = ''
         for i, (l, r) in enumerate(zip_longest(lsplit, rsplit)):
@@ -176,10 +183,9 @@ class Table:
                 break
             lsplit = list(left.split('\n')) if '\n' in left else [left]
             rsplit = list(right.split('\n')) if '\n' in right else [right]
-            lsplit, rsplit = [l.lstrip() for l in lsplit], [r.lstrip() for r in rsplit]
             # if entries havent been broken take this shortcut
             if len(lsplit) == len(rsplit) == 1:
                 res += f'{self.left_with_place_holders(left)}{right}\n'
             else:
-                res += f'{self.format_multiline_lines(lsplit, rsplit)}\n'
+                res += f'{self.format_multiline_entries(lsplit, rsplit)}\n'
         print(res.rstrip())

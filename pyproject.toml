@@ -7,11 +7,11 @@ where = ["src"]
 
 [project]
 name = "dictcc-mini"
-version = "0.1.1"
+version = "0.1.2"
 authors = [
   { name="thstkn", email="dev@veddeler.org" },
 ]
-description = "A lightweight, width-aware terminal formatter for dict.cc translations."
+description = "A lightweight, terminal formatter for dict.cc translations."
 readme = "README.md"
 requires-python = ">=3.7"
 license = {text = "MIT"}

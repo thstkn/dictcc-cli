@@ -60,8 +60,10 @@ classical: `pip install dictcc-mini`
 ## defaults
 
 As per my own preference, this script defaults to DE/EN as languages, which are
-simply set as `DEFAULT_LANG1` and `DEFAULT_LANG2` constants in the languages.py
+simply set as `DEFAULT_LANG1` and `DEFAULT_LANG2` constants in the `config.py` 
 and easily modified to match your preference.
+
+Different styles for marking multiline entries available to set in `config.py`.
 
 ---
 <br>
