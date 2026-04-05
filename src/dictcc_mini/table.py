@@ -23,9 +23,9 @@ class TableColumn:
     def field_indicators(self) -> tuple[str, str, str]:
         return FIELD_STYLES[self.field_indicator_style]
     @property
-    def stripped_indicators(self) -> tuple[str | None, str | None, str | None]:
-        return (stripped if (stripped := ind.strip()) else None
-                for ind in self.field_indicators)
+    def stripped_indicators(self) -> tuple[str | None, ...]:
+        return tuple(stripped if (stripped := ind.strip()) else None
+                     for ind in self.field_indicators)
     @property
     def longest_entry(self) -> int:
         longest = 0
@@ -50,7 +50,7 @@ class TableColumn:
             available_width = self.line_width_thresh - len(current_indicator)
             # last line! base condition
             if len(shorten_me) <= available_width:
-                break
+                break       # add line and update shorten_me
             head, shorten_me = next_head(shorten_me, available_width)
             if not head:
                 raise ValueError(f'{head = } needs to be assigned here!')
@@ -83,41 +83,45 @@ class Table:
         self.column_width = (terminal_width - 2) // 2
         self.pad_right_of_placeholders = ''
         self.pad_left_of_placeholders = ''
-        CENTER_MARGIN = 3
-
-        left_column = TableColumn(entries_left, terminal_width,
-                                  self.column_width, self.table_length,
-                                  center_margin=CENTER_MARGIN)
-        right_column = TableColumn(entries_right, terminal_width,
-                                   self.column_width, self.table_length,
-                                   center_margin=CENTER_MARGIN)
-
-        if any(len(left) + len(right) + CENTER_MARGIN >= terminal_width
-               for left in left_column.entries
-               for right in right_column.entries):
-
-            rlong = right_column.longest_entry
-            longest_right = rlong if rlong <= self.column_width else \
-                            self.column_width
-
-            left_column.preprocess(longest_right)
-            llong = left_column.longest_entry
-            longest_left = llong if llong <= self.column_width else \
-                           self.column_width
-
-            right_column.preprocess(longest_left)
-
-        SUM = left_column.longest_entry + right_column.longest_entry + CENTER_MARGIN
+        CENTER_MARGIN = len(INLINE_DEFAULT[0])
+        l_col = TableColumn(
+                entries_left, terminal_width, self.column_width,
+                self.table_length, center_margin=CENTER_MARGIN)
+        r_col = TableColumn(
+                entries_right, terminal_width, self.column_width,
+                self.table_length, center_margin=CENTER_MARGIN)
+        self.left_column, self.right_column = self.negotiate_widths(
+                l_col, r_col, terminal_width, CENTER_MARGIN)
+        SUM = self.left_column.longest_entry + \
+              self.right_column.longest_entry + CENTER_MARGIN
         if SUM > terminal_width:
             msg = f'Terminal very small: {terminal_width} columns. ' \
                   f'Expect tearing.'
             print(f'{partition_to_column(msg, terminal_width)}\n')
+        # this can only be determined after negotiate_widths as it
+        # depends on where lines have been broken.
+        self.longest_l = self.left_column.longest_entry
 
-        self.left_column, self.right_column = left_column, right_column
-        # this can only be determined after preprocessing, as it depends on
-        # where lines have been broken.
-        self.longest_l = left_column.longest_entry
+    def negotiate_widths(self, left_column: TableColumn,
+                         right_column: TableColumn,
+                         terminal_width: int, margin: int) \
+                                 -> tuple[TableColumn, TableColumn]:
+        max_l, max_r = (col.longest_entry for col in (left_column, right_column))
+        available_total = terminal_width - margin
+        if max_l + max_r <= available_total:
+            return left_column, right_column
 
+        fair_share = available_total // 2
+
+        if max_l <= fair_share:
+            target_l, target_r = max_l, available_total - max_l
+        if max_r <= fair_share:
+            target_l, target_r = available_total - max_r, max_r
+        target_l = fair_share
+        target_r = available_total - fair_share
+        left_column.preprocess(target_l)
+        right_column.preprocess(target_r)
+        return left_column, right_column
 
     def len_place_holders(self, left) -> int:
         return self.longest_l - len(left)
