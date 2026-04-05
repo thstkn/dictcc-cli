@@ -4,6 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+exclude = ["test*"]
 
 [project]
 name = "dictcc-mini"
@@ -11,7 +12,7 @@ version = "0.1.2"
 authors = [
   { name="thstkn", email="dev@veddeler.org" },
 ]
-description = "A lightweight, terminal formatter for dict.cc translations."
+description = "A simple and lightweight terminal formatter for dict.cc translations."
 readme = "README.md"
 requires-python = ">=3.7"
 license = {text = "MIT"}

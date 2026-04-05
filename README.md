@@ -42,13 +42,13 @@ classical: `pip install dictcc-mini`
 1. Download the source code from github.
 2. Install dependencies (requests, beautifulsoup4, fake_headers) with `pip install
     -r requirements.txt`.
-3. I recommend aliasing in an rc-file of your shell in one of the following two
-   ways. For this to work you'll need to add the `dictcc-mini/src` directory to
-   you `PYTHONPATH` environment variable.
+3. Make `dictcc-mini/src` directory available via `PYTHONPATH` environment variable.
 
     1. ``` bash
        export PYTHONPATH=$PYTHONPATH:/your/path/to/dictcc-mini/src
        ```
+
+4. Alias in an rc-file of your shell in one of the following two ways.
 
     2. ``` bash
        alias dict="python3 -m dictcc_mini.cli "

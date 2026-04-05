@@ -1,9 +1,10 @@
 from argparse import ArgumentParser
 from shutil import get_terminal_size
 
-from dictcc_mini.config import CODES, DEFAULT_LANG1
+from dictcc_mini.config import COUNTRY_CODES, DEFAULT_LANG1
 from dictcc_mini.scraper import scrape
 from dictcc_mini.table import Table
+from dictcc_mini.misc import partition_to_column
 
 def parse():
     parser = ArgumentParser(prog='dictcc-mini',
@@ -15,13 +16,12 @@ def parse():
                         help='start with language selector')
     return parser.parse_args()
 
-def select_languages(codes_per_line) -> str:
-    country_codes = '\n'.join('  '.join(CODES[ i*codes_per_line : (i+1)*codes_per_line ])
-                              for i in range(len(CODES) // codes_per_line + 1))
+def select_languages() -> str:
+    country_codes = partition_to_column(COUNTRY_CODES, get_terminal_size()[0])
     print(f'{country_codes}')
     user_inputs = ['', '']
     FIRST = True
-    while not all(i.upper() in CODES for i in user_inputs):
+    while not all(i.upper() in COUNTRY_CODES for i in user_inputs):
         prompt = f'Enter two country codes: ' if FIRST else \
                  f'Enter two space-separated country codes: '
         FIRST = False
@@ -31,7 +31,7 @@ def select_languages(codes_per_line) -> str:
             continue
         user_inputs = [in1, in2]
         for i, user_input in enumerate(user_inputs):
-            if user_input.upper() not in CODES:
+            if user_input.upper() not in COUNTRY_CODES:
                 if i >= 1 and user_input == '':
                     print(f"Defaulting to '{DEFAULT_LANG1.upper()}'\n")
                     user_inputs[1] = DEFAULT_LANG1
@@ -42,7 +42,7 @@ def select_languages(codes_per_line) -> str:
 
 def main():
     ARGS = parse()      # if requested manual language override
-    lang_select = select_languages(get_terminal_size()[0] * 2 - 5) \
+    lang_select = select_languages() \
                   if ARGS.language else None
     left_column, right_column = scrape(ARGS.word, lang_select)
     table = Table(left_column, right_column, ARGS.full)

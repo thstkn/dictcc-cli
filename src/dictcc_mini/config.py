@@ -1,12 +1,13 @@
 from os import getenv
 
-CODES = sorted(['EN', 'SV', 'IS', 'RU', 'RO', 'FR', 'IT', 'SK', 'NL', 'PT',
-                'LA', 'FI', 'ES', 'HU', 'NO', 'BG', 'HR', 'CS', 'DA', 'TR',
-                'UK', 'PL', 'EO', 'SR', 'SQ', 'EL', 'BS', 'DE'])
+COUNTRY_CODES = sorted(['EN', 'SV', 'IS', 'RU', 'RO', 'FR', 'IT', 'SK', 'NL',
+                        'PT', 'LA', 'FI', 'ES', 'HU', 'NO', 'BG', 'HR', 'CS',
+                        'DA', 'TR', 'UK', 'PL', 'EO', 'SR', 'SQ', 'EL', 'BS',
+                        'DE'])
 DEFAULT_LANG1 = getenv('DICTCC_LANG1', 'de')
 DEFAULT_LANG2 = getenv('DICTCC_LANG2', 'en')
 
-DEFAULT_STYLE = getenv('DICTCC_STYLE', 'compact2')
+FIELD_DEFAULT = getenv('DICTCC_FIELD_STYLE', 'compact2')
 FIELD_STYLES = {
     'wider':    ('',  '│  ', '╰╴ '),
     'wide1':    ('',  '│ ',  '╰╴'),
@@ -17,3 +18,7 @@ FIELD_STYLES = {
     'none':     ('',  '',    '')
 }
 
+INLINE_DEFAULT = getenv('DICTCC_INLINE_STYLE', 'default')
+INLINE_STYLES = {
+    'default':  (' . ', '   '),
+}
