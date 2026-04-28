@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 from shutil import get_terminal_size
 
 from dictcc_mini.config import COUNTRY_CODES, DEFAULT_LANG1
-from dictcc_mini.scraper import scrape
+from dictcc_mini.scraper import get_columns
 from dictcc_mini.table import Table
 from dictcc_mini.misc import partition_to_column
 
@@ -17,14 +17,11 @@ def parse():
     return parser.parse_args()
 
 def select_languages() -> str:
-    country_codes = partition_to_column(COUNTRY_CODES, get_terminal_size()[0])
+    country_codes = partition_to_column(' '.join(COUNTRY_CODES), get_terminal_size()[0])
     print(f'{country_codes}')
     user_inputs = ['', '']
-    FIRST = True
     while not all(i.upper() in COUNTRY_CODES for i in user_inputs):
-        prompt = f'Enter two country codes: ' if FIRST else \
-                 f'Enter two space-separated country codes: '
-        FIRST = False
+        prompt = 'Enter two space-separated country codes: '
         try:
             in1, in2 = input(prompt).split()
         except Exception as e:
@@ -41,10 +38,9 @@ def select_languages() -> str:
     return ''.join(user_inputs)
 
 def main():
-    ARGS = parse()      # if requested manual language override
-    lang_select = select_languages() \
-                  if ARGS.language else None
-    left_column, right_column = scrape(ARGS.word, lang_select)
+    ARGS = parse()
+    lang_select = select_languages() if ARGS.language else None
+    left_column, right_column = get_columns(ARGS.word, lang_select)
     table = Table(left_column, right_column, ARGS.full)
     if not table.left_column.entries:
         print('No result')

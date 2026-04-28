@@ -1,16 +1,13 @@
-# dictcc-cli
+# dictcc-mini
 
 Quickly look up translations without relying on the browser. This script is 
-mostly just a fancy table formatter which happens to get it's data for 
-formatting from dict.cc.
+mostly just a table formatter which happens to get it's data for formatting
+from dict.cc.
 
 Features:
 1. simple
-2. small footprint
-   - depends only on: `requests`, `beautifulsoup4` and `fake-headers`
-   - `site-packages` in freshly installed VENV including all transient dependencies like `html5lib`,
-     `idna`, `urllib3` is sub 20 MB!
-3. scales with respect to terminal width
+2. scales with respect to terminal width
+3. small footprint
 
 <br>
 
@@ -26,6 +23,13 @@ already available which is more feature rich, but it has a larger dependency
 footprint. I've deliberately opted against depending on rich for formatting and
 lxml for parsing.
 
+## State
+   - up to v0.1.3: depends only on: `requests`, `beautifulsoup4` and `fake-headers`.
+     `site-packages` in freshly installed VENV including all transient dependencies
+     like `html5lib`, `idna`, `urllib3` is sub 20 MB!
+   - since v0.2.0: No dependencies left after implementing the relevant logic with
+      python standard library. Now sub MB size!
+
 ---
 <br>
 
@@ -40,15 +44,13 @@ classical: `pip install dictcc-mini`
 ## manual
 
 1. Download the source code from github.
-2. Install dependencies (requests, beautifulsoup4, fake_headers) with `pip install
-    -r requirements.txt`.
-3. Make `dictcc-mini/src` directory available via `PYTHONPATH` environment variable.
+2. Make `dictcc-mini/src` directory available via `PYTHONPATH` environment variable.
 
     1. ``` bash
        export PYTHONPATH=$PYTHONPATH:/your/path/to/dictcc-mini/src
        ```
 
-4. Alias in an rc-file of your shell in one of the following two ways.
+3. Alias in an rc-file of your shell in one of the following two ways.
 
     2. ``` bash
        alias dict="python3 -m dictcc_mini.cli "
@@ -63,7 +65,8 @@ As per my own preference, this script defaults to DE/EN as languages, which are
 simply set as `DEFAULT_LANG1` and `DEFAULT_LANG2` constants in the `config.py` 
 and easily modified to match your preference.
 
-Different styles for marking multiline entries available to set in `config.py`.
+Different styles for marking multiline entries and other defaults available to
+set in `config.py` as well.
 
 ---
 <br>

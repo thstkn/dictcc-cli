@@ -1,0 +1,35 @@
+{
+    "word": "bremsstrahlung",
+    "left": [
+        "bremsstrahlung [ANSI] [MedTech.] [phys.]",
+        "(braking) deceleration [phys.]",
+        "braking radiation [phys.]",
+        "brems radiation [use bremsstrahlung ] [MedTech.]",
+        "bremsstrahlung spectrum [MedTech.]",
+        "bremsstrahlung spectrum [MedTech.]",
+        "continuous bremsstrahlung [MedTech.] [phys.]",
+        "bremsstrahlung isochromat spectroscopy <BIS> [phys.]",
+        "continuous X-rays {pl} [ bremsstrahlung ] [in an X-ray tube] [MedTech.] [phys.]",
+        "slowing-down radiation [ bremsstrahlung ] [phys.]",
+        "hard X-ray bremsstrahlung [MedTech.]",
+        "soft X-ray bremsstrahlung [MedTech.]",
+        "ultrahard X-ray bremsstrahlung [MedTech.]",
+        "energy loss {sg} by emission of bremsstrahlung [phys.]"
+    ],
+    "right": [
+        "Bremsstrahlung {f} [IEC 60050]",
+        "Bremsstrahlung {f}",
+        "Bremsstrahlung {f}",
+        "Bremsstrahlung {f}",
+        "Bremsstrahlenspektrum {n}",
+        "Bremsstrahlungsspektrum {n}",
+        "kontinuierliche Bremsstrahlung {f} [weiße Strahlung]",
+        "Bremsstrahlungsisochromatenspektroskopie {f} <BIS>",
+        "Bremsstrahlung {f} [Röntgenröhre]",
+        "Bremsstrahlung {f}",
+        "harte Röntgenbremsstrahlung {f}",
+        "weiche Röntgenbremsstrahlung {f}",
+        "ultraharte Röntgenbremsstrahlung {f}",
+        "Bremsstrahlungsverluste {pl}"
+    ]
+}

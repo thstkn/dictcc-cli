@@ -14,6 +14,8 @@ def next_head(long_str: str, columns: int) \
     return head, remains
 
 def partition_to_column(long_str: str, columns: int) -> str:
+    if len(long_str) <= columns:
+        return long_str
     head, remains = next_head(long_str, columns)
     if len(remains) <= columns:
         return '\n'.join((head, remains))

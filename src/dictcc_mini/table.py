@@ -1,7 +1,8 @@
 from shutil import get_terminal_size
 from itertools import zip_longest
 from dictcc_mini.config import FIELD_STYLES, FIELD_DEFAULT, \
-                               INLINE_STYLES, INLINE_DEFAULT
+                               INLINE_STYLES, INLINE_DEFAULT, \
+                               DEFAULT_TABLE_LEN
 from dictcc_mini.misc import partition_to_column, next_head
 
 class TableColumn:
@@ -77,7 +78,7 @@ class TableColumn:
 class Table:
     def __init__(self, entries_left, entries_right, full_table,
                  terminal_width: None | int = None) -> None:
-        self.table_length = 20 if not full_table else 1000
+        self.table_length = DEFAULT_TABLE_LEN if not full_table else 1000
         terminal_width = get_terminal_size()[0] if not terminal_width else \
                          terminal_width
         self.column_width = (terminal_width - 2) // 2

@@ -1,43 +1,78 @@
-import requests
-from bs4 import BeautifulSoup
-from fake_headers import Headers
-from dictcc_mini.config import DEFAULT_LANG1, DEFAULT_LANG2
+from urllib.request import Request, urlopen
+from urllib.parse import quote
+from html.parser import HTMLParser
+from dictcc_mini.config import DEFAULT_LANG1, DEFAULT_LANG2, DEFAULT_HEADERS
 
-def get_url(word, fromto=None) -> str:
-    if not fromto:
-        fromto = f'{DEFAULT_LANG1}{DEFAULT_LANG2}'
-    return f'https://{fromto}.dict.cc/?s={word}'
-
-def scrape_for_content(url: str):
+def scrape_for_content(word: str, languages) -> str:
+    ''' Returns decoded html string '''
+    url = get_url(word, languages)
     if not url:
-        print('Please supply valid URL:  {url = }')
-    header = Headers().generate()
+        raise ValueError(f'Please supply valid URL:  {url = }')
+    req = Request(url, headers=DEFAULT_HEADERS)
     try:
-        response = requests.get(url, headers=header, timeout=10)
-        response.raise_for_status()
-        return response.content
-    except requests.exceptions.RequestException as e:
-        print(f'Error connecting to dict.cc: {e}')
+        with urlopen(req, timeout=10) as response:
+            return response.read().decode('utf-8')
+    except Exception as e:
+        print(f'scrape_for_content: Error connecting to dict.cc: {e}')
 
-def sift_the_soup(content) -> tuple[list[str], list[str]]:
-    soup = BeautifulSoup(content, 'html.parser')
-    table_elements = soup.find_all('td', class_='td7nl')
-    table_left, table_right = [], []
-    for i in range(0, len(table_elements), 2):
-        l = table_elements[i]
-        r = table_elements[i+1]
-        table_left.append(' '.join(ref.text for ref in l.find_all(['a'])))
-        table_right.append(' '.join(ref.text for ref in r.find_all(['a'])))
-# dfns are optional chunks of information in brackets on dict.cc which differ
-# from those brackets which are contained in the strings from a-refs above and
-# need to be added extra like below
-        dfns_l, dfns_r = l.find_all(['dfn']), r.find_all(['dfn'])
-        if dfns_l:
-            table_left[-1] += ' ' + ' '.join(f'[{d.text}]' for d in dfns_l)
-        if dfns_r:
-            table_right[-1] += ' ' + ' '.join(f'[{d.text}]' for d in dfns_r)
+def get_columns(word: str, languages) -> tuple[list[str], list[str]]:
+    content = scrape_for_content(word, languages)
+    if not content:
+        raise ValueError(f'Got no content from `scrape_for_content()`!')
+    parser = DictParser()
+    parser.feed(content)
+    table_left, table_right = parser.data[0::2], parser.data[1::2]
     return table_left, table_right
 
-def scrape(word, languages) -> tuple[list[str], list[str]]:
-    content = scrape_for_content(get_url(word, languages))
-    return sift_the_soup(content)
+def get_url(word, langs=None) -> str:
+    if not langs:
+        langs = f'{DEFAULT_LANG1}{DEFAULT_LANG2}'
+    safe_word = quote(word)     # quote to make compatible with umlauts
+    return f'https://{langs}.dict.cc/?s={safe_word}'
+
+class DictParser(HTMLParser):
+    def __init__(self, show_frequency=False):
+        super().__init__()
+        self.data = []
+        self.show_frequency = show_frequency
+        self.in_target_td = False       # state flags
+        self.in_dfn = False
+        self.in_ignored_div = False
+        self.main_buffer = []
+        self.tag_buffer = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs_dict = dict(attrs)
+        if tag == 'td' and attrs_dict.get('class') == 'td7nl':
+            self.in_target_td = True
+        elif self.in_target_td:
+            if tag == 'dfn':
+                self.in_dfn = True
+            elif tag == 'div' and 'color:#999' in attrs_dict.get('style', ''):
+                if not self.show_frequency:
+                    self.in_ignored_div = True
+
+    def handle_data(self, data):
+        if self.in_target_td and not self.in_ignored_div:
+            clean_text = data.strip()
+            if clean_text:
+                if self.in_dfn:
+                    self.tag_buffer.append(f'[{clean_text}]')
+                else:
+                    self.main_buffer.append(clean_text)
+
+    def handle_endtag(self, tag):
+        if tag == 'dfn':
+            self.in_dfn = False
+        elif tag == 'div':
+            self.in_ignored_div = False
+        elif tag == 'td' and self.in_target_td:
+            # reassemble text first, then tags
+            entry = " ".join(self.main_buffer)
+            if self.tag_buffer:
+                entry += " " + " ".join(self.tag_buffer)
+            if entry.strip():
+                self.data.append(entry.strip())
+            self.main_buffer = []   # reset buffers and state for next entry
+            self.tag_buffer = []
+            self.in_target_td = False

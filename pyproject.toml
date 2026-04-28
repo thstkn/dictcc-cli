@@ -8,7 +8,7 @@ exclude = ["test*"]
 
 [project]
 name = "dictcc-mini"
-version = "0.1.3"
+version = "0.2.0"
 authors = [
   { name="thstkn", email="dev@veddeler.org" },
 ]
@@ -21,11 +21,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Topic :: Utilities",
-]
-dependencies = [
-    "requests",
-    "beautifulsoup4",
-    "fake-headers",
 ]
 
 [project.urls]

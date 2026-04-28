@@ -1,28 +1,34 @@
+#!/usr/bin/python3.15
+
 import json
 import os
-from dictcc_mini.scraper import scrape
+from time import sleep
+from dictcc_mini.scraper import get_columns, scrape_for_content
 
-def gather_samples():
-    # Diversified terms: short, very long/complex, and common
-    test_terms = ["test", "kanzler", "hi"]
-    # Ensure test directory exists
-    os.makedirs("/home/lnrd/git/_thstkn/dictcc-mini/test/data",
-                exist_ok=True)
+def save_raw_html(file_path, word, languages='deen'):
+    content = scrape_for_content(word, languages)
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    print(f'Saved to {file_path}')
 
-    for word in test_terms:
-        print(f"Gathering data for: {word}...")
-        left, right = scrape(word, "deen")  # default to German-English
+def gather_sample_columns(file_path, word, languages='deen'):
+    left, right = get_columns(word, languages)
+    sample = {
+        "word": word,
+        "left": left,
+        "right": right
+    }
 
-        sample = {
-            "word": word,
-            "left": left,
-            "right": right
-        }
-
-        file_path = f"test/data/{word}.json"
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(sample, f, indent=4, ensure_ascii=False)
-        print(f"Saved to {file_path}")
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(sample, f, indent=4, ensure_ascii=False)
+    print(f"Saved to {file_path}")
 
 if __name__ == "__main__":
-    gather_samples()
+    test_terms = 'was', 'kanzler', 'bremsstrahlung', 'hi', 'test'
+    p = '/home/lnrd/git/_thstkn/dictcc-mini/test/data/'
+    os.makedirs(name=p, exist_ok=True)
+    for word in test_terms:
+        gather_sample_columns(f'{p}{word}.json', word)
+        sleep(1)
+        save_raw_html(f'{p}{word}.html', word)
+        sleep(1)
